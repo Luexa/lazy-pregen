@@ -1,0 +1,18 @@
+[package]
+name = "lazy-pregen"
+version = "0.1.0"
+authors = ["akr <akr+git@akars.io>"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+failure = "0.1"
+chrono = "0.4"
+clap = "2"
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
+fern = "0.5"
+serde = "1"
+serde_derive = "1"
+toml = "0.4"
+ctrlc = "3"
+regex = "1"
+bincode = "1"
