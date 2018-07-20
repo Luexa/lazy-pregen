@@ -579,7 +579,7 @@ fn main() -> Result<(), Error> {
     initialize_logging()?;
 
     let matches = App::new("lazy-pregen")
-        .version("0.1.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("akr <akr+git@akars.io>")
         .arg(Arg::with_name("FOLDER")
             .takes_value(true)
