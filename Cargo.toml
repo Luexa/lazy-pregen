@@ -3,6 +3,8 @@ name = "lazy-pregen"
 version = "0.1.0"
 authors = ["akr <akr+git@akars.io>"]
 license = "MIT OR Apache-2.0"
+readme = "README-SIMPLIFIED.md"
+include = ["src/**/*", "Cargo.toml", "Cargo.lock", "README.md", "README-SIMPLIFIED.md", "LICENSE-APACHE", "LICENSE-MIT"]
 
 [dependencies]
 failure = "0.1"
