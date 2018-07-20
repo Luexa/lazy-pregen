@@ -900,16 +900,16 @@ fn main() -> Result<(), Error> {
                                         },
                                     ) {
                                         error!("Chunk pregeneration failed: {}", err);
-                                    }
 
-                                    let status = child.wait().unwrap();
+                                        child.wait().unwrap();
 
-                                    info!("Server stopped.");
-
-                                    if status.success() {
-                                        Ok(())
+                                        Err(format_err!("fatal error"))
                                     } else {
-                                        Err(format_err!("server process ended with a bad exit status: {}", status))
+                                        child.wait().unwrap();
+
+                                        info!("Server stopped.");
+
+                                        Ok(())
                                     }
                                 },
                                 // Server did not finish starting up.
