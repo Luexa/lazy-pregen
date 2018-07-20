@@ -3,8 +3,7 @@
 [Latest Version]: https://img.shields.io/crates/v/lazy-pregen.svg
 [crates.io]: https://crates.io/crates/lazy-pregen
 
-A disorganized Rust command line Minecraft Server wrapper used to pregenerate
-chunks.
+A Rust command line Minecraft Server wrapper used to pregenerate chunks.
 
 [Documentation](https://docs.rs/lazy-pregen/)
 
