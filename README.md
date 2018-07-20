@@ -1,4 +1,4 @@
-# lazy-pregen &emsp; [![Latest Version][crates.io]]
+# lazy-pregen &emsp; [![Latest Version]][crates.io]
 
 [Latest Version]: https://img.shields.io/crates/v/lazy-pregen.svg
 [crates.io]: https://crates.io/crates/lazy-pregen
