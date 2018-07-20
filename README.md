@@ -5,7 +5,7 @@
 
 A Rust command line Minecraft Server wrapper used to pregenerate chunks.
 
-[Documentation](https://docs.rs/lazy-pregen/)
+[Documentation](https://github.com/akars/lazy-pregen/blob/master/DOCUMENTATION.md)
 
 lazy-pregen was made for personal use and thus has several issues that the
 author did not care to deal with. It is highly recommended to read the above
