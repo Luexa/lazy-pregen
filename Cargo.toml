@@ -1,7 +1,7 @@
 [package]
 name = "lazy-pregen"
 description = "A Rust command line Minecraft Server wrapper used to pregenerate chunks."
-version = "0.1.4"
+version = "0.1.5"
 authors = ["akr <akr+git@akars.io>"]
 license = "MIT OR Apache-2.0"
 readme = "README-SIMPLIFIED.md"
@@ -19,3 +19,4 @@ toml = "0.4"
 ctrlc = "3"
 regex = "1"
 bincode = "1"
+nix = "0.13"

@@ -7,6 +7,11 @@ the given radius. The `save-all flush` command is invoked every 512 chunks
 generated per dimension, so in truth it is every 1536 chunks generated
 across the whole save file.
 
+You can generate chunks in a single dimension or only two dimensions by using
+one or more of these command line flags:
+
+`--overworld`, `--nether`, `--end`
+
 This command comes with support for configuration in LazyPregen.toml with
 the following default settings:
 
@@ -41,8 +46,8 @@ Finally, note that lazy-pregen does not really think about the
 server.properties or the state of the world. It is recommended to change
 `max-tick-time` to `-1` (to disable crashes based on a tick taking too
 long), `server-port` to `0` (to randomize the port and make the server
-practically inaccessible), disable the ingame gamerules `doDaylightCycle`
-and `doWeatherCycle`, and set the ingame gamerule `randomTickSpeed` to 0.
+practically inaccessible), and disable the ingame gamerules
+`doDaylightCycle` and `doWeatherCycle`.
 These changes can all be reverted once you are ready to use the world in
 either singleplayer or multiplayer.
 
@@ -52,26 +57,3 @@ generated since the last write to LazyPregen.lock were saved. Fortunately,
 the overhead caused by attempting to generate chunks that are already
 generated is very low, especially since the lock file is updated every 512
 chunks.
-
-One bug with Minecraft Server 1.13 was discovered during the testing of this
-program:
-
-- There is a memory leak of some sort likely involving the world generator.
-After about an hour of pregeneration, no matter the memory setting, the
-server process and with it the wrapper will crash due to a Java out of
-memory exception. To counter this bug, write a simple shell script that
-restarts lazy-pregen if it exits with a non-zero exit code.
-
-The author also knows of two bugs with lazy-pregen that might be noticeable
-but should not cause any major issues:
-
-- lazy-pregen does not properly handle the interrupt signal (sent via
-Ctrl+C). It will exit with an error and will backtrack next time it runs.
-There is not really a way to counter this unless the bug is fixed, however
-as far as the author is aware hitting Ctrl+C is essentially the same as
-running the `stop` command, which should save the progress. As stated
-above, attempting to regenerate existing chunks has very low overhead.
-- lazy-pregen, on full completion of pregeneration, may exit with an error
-for an unknown reason. If this occurs, do not worry, the world is complete
-and ready to go. To verify this, invoke lazy-pregen again and see that it
-says there is nothing to do.

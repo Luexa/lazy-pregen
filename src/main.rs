@@ -21,6 +21,8 @@ extern crate regex;
 
 extern crate bincode;
 
+extern crate nix;
+
 use std::fs::{OpenOptions, DirBuilder};
 use std::io::{BufReader, ErrorKind as IoErrorKind, Result as IoResult};
 use std::io::prelude::*;
@@ -85,6 +87,14 @@ pub struct Resources {
     /// A path, either absolute or relative to the directory of this config file,
     /// where the server JAR is located.
     pub server: String,
+}
+
+/// A set of booleans indicating whether the corresponding dimension will be pregenerated.
+#[derive(Debug)]
+pub struct Dimensions {
+    pub overworld: bool,
+    pub nether: bool,
+    pub end: bool,
 }
 
 impl Config {
@@ -414,7 +424,7 @@ impl PregenController {
     /// evaluates as true. Passes a radius and number of chunks to generate for
     /// each new ring to "output" for logging purposes. Passes a state to "cache"
     /// occasionally (after a successful `save-all flush`) for caching purposes.
-    pub fn generate_chunks<W, P, O, C>(self, mut console: TextStream, mut writer: W, mut predicate: P, mut output: O, mut cache: C) -> Result<(), Error>
+    pub fn generate_chunks<W, P, O, C>(self, dimensions: Dimensions, mut console: TextStream, mut writer: W, mut predicate: P, mut output: O, mut cache: C) -> Result<(), Error>
     where
         W: Write,
         P: FnMut() -> bool,
@@ -423,43 +433,24 @@ impl PregenController {
     {
         let PregenController { mut state, max_ring } = self;
 
-        // This is so we no longer care about ticks / auto save.
-        // We handle it manually.
-        writer.write_all("save-off\n".as_bytes())?;
-
         let mut count = 0;
 
         let save_success = Regex::new(r": Saved the game$").unwrap();
-        let armor_stand_success = Regex::new(r": Summoned new Armor Stand$").unwrap();
-
-        writer.write_all("summon armor_stand ~ ~ ~ {Invisible:1b,Marker:1b,NoGravity:1b,Invulnerable:1b,Tags:[lazy_pregen_marker]}\n".as_bytes())?;
-
-        // Return early (Err) is good, not return early (Ok) is bad.
-        match console.try_for_each(|text| {
-            match text {
-                Text::Stdout(text) => if armor_stand_success.is_match(&text) {
-                    Err(())
-                } else {
-                    Ok(())
-                },
-                Text::Stderr(_) => Ok(()),
-            }
-        }) {
-            Err(()) => (),
-            Ok(()) => return Err(format_err!("server ended after attempting to summon armor stand")),
-        }
 
         let mut last_ring = ::std::u32::MAX;
 
         loop {
             if !predicate() {
                 info!("Stopping pregeneration due to interrupt signal.");
+
+                writer.write_all("save-all flush\n".as_bytes())?;
+                writer.write_all("stop\n".as_bytes())?;
+
                 cache(state.clone());
                 break Ok(());
             }
 
             if state.ring() > max_ring {
-                writer.write_all("kill @e[type=armor_stand,tag=lazy_pregen_marker\n".as_bytes())?;
                 writer.write_all("save-all flush\n".as_bytes())?;
                 writer.write_all("stop\n".as_bytes())?;
 
@@ -508,15 +499,17 @@ impl PregenController {
             let raw_x = chunk_x * 16 + 8;
             let raw_z = chunk_z * 16 + 8;
 
-            write!(
-                writer,
-"spreadplayers {x} {z} 0 1 false @e[type=armor_stand,tag=lazy_pregen_marker]
-execute in the_nether run spreadplayers {x} {z} 0 1 false @e[type=armor_stand,tag=lazy_pregen_marker]
-execute in the_end run spreadplayers {x} {z} 0 1 false @e[type=armor_stand,tag=lazy_pregen_marker]
-",              
-                x = raw_x,
-                z = raw_z
-            )?;
+            if dimensions.overworld {
+                write!(writer, "execute in overworld run forceload add {x} {z}\n", x = raw_x, z = raw_z)?;
+            }
+
+            if dimensions.nether {
+                write!(writer, "execute in the_nether run forceload add {x} {z}\n", x = raw_x, z = raw_z)?;
+            }
+
+            if dimensions.end {
+                write!(writer, "execute in the_end run forceload add {x} {z}\n", x = raw_x, z = raw_z)?;
+            }
 
             state.increment();
 
@@ -525,7 +518,9 @@ execute in the_end run spreadplayers {x} {z} 0 1 false @e[type=armor_stand,tag=l
             if count == 512 {
                 count = 0;
 
-                writer.write_all("kill @e[type=armor_stand,tag=lazy_pregen_marker]\n".as_bytes())?;
+                writer.write_all("execute in overworld run forceload remove all\n".as_bytes())?;
+                writer.write_all("execute in the_nether run forceload remove all\n".as_bytes())?;
+                writer.write_all("execute in the_end run forceload remove all\n".as_bytes())?;
                 writer.write_all("save-all flush\n".as_bytes())?;
 
                 // Return early (Err) is good, not return early (Ok) is bad.
@@ -539,24 +534,7 @@ execute in the_end run spreadplayers {x} {z} 0 1 false @e[type=armor_stand,tag=l
                         Text::Stderr(_) => Ok(()),
                     }
                 }) {
-                    Err(()) => {
-                        cache(state.clone());
-
-                        writer.write_all("summon armor_stand ~ ~ ~ {Invisible:1b,Marker:1b,NoGravity:1b,Invulnerable:1b,Tags:[lazy_pregen_marker]}\n".as_bytes())?;
-                        match console.try_for_each(|text| {
-                            match text {
-                                Text::Stdout(text) => if armor_stand_success.is_match(&text) {
-                                    Err(())
-                                } else {
-                                    Ok(())
-                                },
-                                Text::Stderr(_) => Ok(())
-                            }
-                        }) {
-                            Err(()) => (),
-                            Ok(()) => break Err(format_err!("server ended after attempting to summon armor stand")),
-                        }
-                    },
+                    Err(()) => cache(state.clone()),
                     Ok(()) => break Err(format_err!("server ended after attempting to save world")),
                 }
             }
@@ -566,6 +544,36 @@ execute in the_end run spreadplayers {x} {z} 0 1 false @e[type=armor_stand,tag=l
     pub fn radius(&self) -> u32 {
         (self.max_ring + 1) * 16
     }
+}
+
+#[cfg(target_family = "unix")]
+fn initialize_command(command: &mut Command) -> &mut Command {
+    use std::io::Error as IoError;
+    use std::os::unix::process::CommandExt;
+    use nix::unistd::setsid;
+    use nix::Error as NixError;
+
+    unsafe {
+        command.pre_exec(|| setsid().map_err(|err| {
+            if let Some(errno) = err.as_errno() {
+                IoError::from(errno)
+            } else {
+                let kind = match &err {
+                    NixError::InvalidPath => IoErrorKind::NotFound,
+                    NixError::InvalidUtf8 => IoErrorKind::InvalidData,
+                    _ => IoErrorKind::Other,
+                };
+                IoError::new(kind, err)
+            }
+        }).map(|_| ()))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn initialize_command(command: &mut Command) -> &mut Command {
+    use std::os::windows::process::CommandExt;
+
+    command.creation_flags(0x00000200)
 }
 
 fn main() -> Result<(), Error> {
@@ -580,14 +588,46 @@ fn main() -> Result<(), Error> {
 
     let matches = App::new("lazy-pregen")
         .version(env!("CARGO_PKG_VERSION"))
-        .author("akr <akr+git@akars.io>")
+        .author("alluet <alluet@alluet.com>")
+        .arg(Arg::with_name("OVERWORLD")
+            .long("overworld")
+            .help("Restrict generation to the Overworld (and any other dimensions with provided flags)")
+        )
+        .arg(Arg::with_name("NETHER")
+            .long("nether")
+            .help("Restrict generation to the Nether (and any other dimensions with provided flags)")
+        )
+        .arg(Arg::with_name("END")
+            .long("end")
+            .help("Restrict generation to the End (and any other dimension with provided flags)")
+        )
         .arg(Arg::with_name("FOLDER")
             .takes_value(true)
             .help("Sets the folder to run the pregenerator in. Default: cwd"))
         .get_matches();
 
+    let dimensions = {
+        let overworld = matches.is_present("OVERWORLD");
+        let nether = matches.is_present("NETHER");
+        let end = matches.is_present("END");
+
+        if overworld || nether || end {
+            Dimensions {
+                overworld,
+                nether,
+                end,
+            }
+        } else {
+            Dimensions {
+                overworld: true,
+                nether: true,
+                end: true,
+            }
+        }
+    };
+
     let path = matches
-        .value_of_os("DEFAULT")
+        .value_of_os("FOLDER")
         .map_or_else(
             // No Argument -> CWD
             || {
@@ -798,12 +838,13 @@ fn main() -> Result<(), Error> {
         Ok(())
     } else {
         match TextStream::new(recv_stdout, recv_stderr) {
-            Ok(mut stream) => match Command::new(&config.resources.java)
-                .args([&xmx_arg, "-jar", &config.resources.server, "nogui"].into_iter())
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
+            Ok(mut stream) => match initialize_command(
+                    Command::new(&config.resources.java)
+                    .args([&xmx_arg, "-jar", &config.resources.server, "nogui"].into_iter())
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                ).spawn()
             {
                 Ok(mut child) => {
                     send_stdout.send(child.stdout.take().unwrap()).unwrap();
@@ -883,7 +924,16 @@ fn main() -> Result<(), Error> {
                                         }
                                     }
 
+                                    let (output_send, output_recv) = mpsc::sync_channel::<(u32, u32)>(2);
+                                    let _ = ThreadBuilder::new().spawn(move || {
+                                        while let Ok((radius, todo)) = output_recv.recv() {
+                                            info!("Pregenerating {} chunks up to radius {}", todo, radius);
+                                        }
+                                    });
+
                                     if let Err(err) = controller.generate_chunks(
+                                        // Which dimensions to generate chunks in
+                                        dimensions,
                                         // Inspect output of console
                                         stream,
                                         // Write commands to console
@@ -891,7 +941,7 @@ fn main() -> Result<(), Error> {
                                         // Ctrl-C handler
                                         move || running.load(AtomicOrdering::SeqCst),
                                         // Log progress
-                                        move |radius, todo| info!("Pregenerating {} chunks up to radius {}", todo, radius),
+                                        move |radius, todo| { let _ = output_send.send((radius, todo)); },
                                         // Cache state
                                         move |state| if overwrite_lock {
                                             if let Err(_) = state_send.send(state) {
